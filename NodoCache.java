@@ -1,11 +1,14 @@
 /**
- * @author Sistemas Operativos - DTE
+ * @author Natalia Sánchez MoragaE
  * @version 2020-a
  * 
  * agosto 2020: versión inicial, jl
  * 
  */
 package servidor;
+
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import comunicaciones.RecursoWeb;
 
@@ -25,6 +28,8 @@ public class NodoCache
 	private boolean debeDescargarse;
 	private static final String NOUSADO = " El recurso no está en uso";
 	private static final String NOCARGADO = "No tiene asignado el recurso";
+	private static Lock cerrojo, mutex, cerr;
+	
 
 	/**
 	 * Crea un nodo del cache web. Al crearlo, el recurso aún no estará
@@ -38,6 +43,9 @@ public class NodoCache
 		recursoWeb = null;
 		contadorUso = 1;
 		debeDescargarse = true;
+		cerrojo = new ReentrantLock();
+		mutex = new ReentrantLock();
+		cerr = new ReentrantLock();
 	}
 
 	/**
@@ -47,13 +55,18 @@ public class NodoCache
 	 */
 	public boolean debeDescargarse ()
 	{
-		try
-		{
-			return debeDescargarse;
-		}
-		finally
-		{
-			debeDescargarse = false;
+		mutex.lock();
+		try {
+			try
+			{
+				return debeDescargarse;
+			}
+			finally
+			{
+				debeDescargarse = false;
+			}
+		} finally {
+			mutex.unlock();
 		}
 	}
 
@@ -63,7 +76,12 @@ public class NodoCache
 	 */
 	public void anotarRecursoWeb ( RecursoWeb recurso )
 	{
-		recursoWeb = recurso;
+		cerr.lock();
+		try {
+			recursoWeb = recurso;
+		} finally {
+			cerr.unlock();
+		}
 	}
 
 	/**
@@ -71,7 +89,12 @@ public class NodoCache
 	 */
 	public void usarRecurso ()
 	{
-		contadorUso++;
+		cerrojo.lock();
+		try {
+			contadorUso++;
+		} finally {
+			cerrojo.unlock();
+		}
 	}
 
 	/**
@@ -82,12 +105,32 @@ public class NodoCache
 	 */
 	public void liberarRecurso ()
 	{
-		if ( contadorUso == 0 )
-			debug ( 0, " Error: " + NOUSADO );
-		usadoRecientemente = true;
-		contadorUso--;
+		cerrojo.lock();
+		try {
+			if ( contadorUso == 0 )
+				debug ( 0, " Error: " + NOUSADO );
+			usadoRecientemente = true;
+			contadorUso--;
+		} finally {
+			cerrojo.unlock();
+		}
 	}
 
+	/**
+	 * Permite obtener si el nodo que lo ejecuta
+	 * está o no en uso.
+	 * @return false si el recurso está en uso
+	 * @return true si el recurso no  está en uso
+	 */
+	public boolean noEnUso () 
+	{
+		if (contadorUso > 0) {
+			return false;
+		} else {
+			return true;
+		} 
+	}
+	
 	/**
 	 * Permite obtener el recurso web almacenado. Tiene que tener
 	 * asignado un RecursoWeb

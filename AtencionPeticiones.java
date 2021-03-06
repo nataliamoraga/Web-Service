@@ -1,5 +1,5 @@
 /**
- * @author Sistemas Operativos - DTE
+ * @author Natalia Sánchez Moraga
  * @version 2020-a
  * 
  * Octubre 2011: versión inicial, jmrueda
@@ -20,12 +20,13 @@ import comunicaciones.Peticion;
  * Hilo de atención de peticiones. Desencola peticiones y las sirve.
  *
  */
-public class AtencionPeticiones
+public class AtencionPeticiones extends Thread
 {
 	private static final String errorConstructor = "Algún parámetro es null";
 	private final BlockingQueue<Peticion> cola;
 	private final Parametros param;
 	private final Cache cache;
+	private volatile boolean terminar;
 
 	/**
 	 * Crea un hilo de atención de peticiones que desencola peticiones y las
@@ -46,7 +47,7 @@ public class AtencionPeticiones
 		this.cola = cola;
 		this.cache = cache;
 		this.param = param;
-		atenderPeticiones();
+		terminar = false;
 	}
 
 	private void atenderPeticiones ()
@@ -56,7 +57,7 @@ public class AtencionPeticiones
 		{
 			do
 				atenderPetición();
-			while ( true );
+			while ( !terminar );
 		}
 		catch ( InterruptedException e )
 		{
@@ -76,8 +77,8 @@ public class AtencionPeticiones
 		final URL url =  pet.getURL();
 		debug ( 2, " Desencola petición para URL: " + url );
 		final NodoCache nodo = cache.buscarNodo ( url );
-		if ( nodo.debeDescargarse() )
-			descargar ( pet, nodo );
+		if ( nodo.debeDescargarse() ) 
+			descargar ( pet, nodo );	
 		final RecursoWeb elementoWeb = nodo.recursoWeb();
 		try
 		{
@@ -118,5 +119,18 @@ public class AtencionPeticiones
 	{
 		if ( param.debug >= nivel )
 			System.err.println ( Thread.currentThread().getName() + mensaje );
+	}
+	
+	/**
+	 * Sobreescribe el método run() de la interfaz Runnable.
+	 * Llama a atenderPeticiones().
+	 */
+	@Override
+	public void run() {
+		atenderPeticiones();
+	}
+	
+	public void terminar () {
+		terminar = true;
 	}
 }
